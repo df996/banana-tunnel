@@ -4,6 +4,10 @@ project(banana_tunnel_server C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(
-        bt_server
+        bt-server
         bt_server.c
+        bt_epoll.h
+        bt_epoll.c
+        ../util/sys_log.h
+        ../util/sys_log.c
 )
