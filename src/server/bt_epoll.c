@@ -11,78 +11,92 @@
 
 #include "bt_epoll.h"
 
-int bt_create_sfd(const char *port) {
+struct bt_epoll_info {
+    int sfd;
+    int epfd;
+    int flags;
+    const char *port;
+    struct epoll_event event;
+    struct epoll_event *events;
+};
+
+void init_socket(struct bt_epoll_info *epoll_info) {
     struct addrinfo hints;
     struct addrinfo *result;
-    int err, sfd;
 
     memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_flags = AI_PASSIVE;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-    if ((err = getaddrinfo(NULL, port, &hints, &result)) != 0) {
-        sys_log(FATAL, "getaddrinfo: %s", gai_strerror(err));
-        return -1;
-    }
-
-    struct addrinfo *rp = result;
-    while (rp != NULL) {
-        if ((sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol)) == -1) {
-            rp = rp->ai_next;
-            continue;
-        }
-
-        if ((err = bind(sfd, rp->ai_addr, rp->ai_addrlen)) == 0) {
-            break;
-        }
-
-        sys_log(FATAL, "bind: %s", gai_strerror(err));
+    if (getaddrinfo(NULL, epoll_info->port, &hints, &result) != 0) {
+        printf("无法获取到地址信息\n");
         exit(1);
     }
 
-    if (NULL == rp) {
-        sys_log(ERROR, "could not bind 8080");
-        return -1;
+    while(NULL != result) {
+        if ((epoll_info->sfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) == -1) {
+            result = result->ai_next;
+            continue;
+        }
+
+        if (bind(epoll_info->sfd, result->ai_addr, result->ai_addrlen) == -1) {
+            printf("端口:%s绑定失败，请检查端口是否被占用\n", epoll_info->port);
+            exit(1);
+        }
+
+        if (listen(epoll_info->sfd, SOMAXCONN) == -1) {
+            printf("监听端口:%s失败\n", epoll_info->port);
+            exit(1);
+        }
+
+        freeaddrinfo(result);
+        sys_log(INFO, "监听端口:%s成功", epoll_info->port);
+        return;
     }
 
-    freeaddrinfo(result);
-    return sfd;
+    printf("无法预料的异常");
+    exit(1);
 }
 
-int aaabt_create_socket() {
-    char hostname[100];
-    struct addrinfo hints;
-    struct addrinfo *result;
-    int err, sfd;
+void init_epoll(struct bt_epoll_info *epoll_info) {
+    do {
+        if ((epoll_info->flags = fcntl(epoll_info->sfd, F_GETFL, 0)) == -1)
+            break;
 
-    if (gethostname(hostname, sizeof(hostname)) < 0) {
-        perror("gethostname");
-        return -2;
+        epoll_info->flags |= O_NONBLOCK;
+
+        if (fcntl(epoll_info->sfd, F_SETFL, epoll_info->flags) == -1)
+            break;
+
+        if ((epoll_info->epfd = epoll_create1(0)) == -1)
+            break;
+
+        epoll_info->event.data.fd = epoll_info->sfd;
+        epoll_info->event.events = EPOLLIN | EPOLLET;
+
+        if (epoll_ctl(epoll_info->epfd, EPOLL_CTL_ADD, epoll_info->sfd, &epoll_info->event) == -1)
+            break;
+
+        epoll_info->events = calloc(1024, sizeof(epoll_info->event));
+
+        return;
+    } while(1);
+
+    printf("%s", strerror(errno));
+    exit(1);
+}
+
+void bt_epoll_start(const char *port) {
+    int epct;
+    struct bt_epoll_info epoll_info;
+
+    epoll_info.port = port;
+    init_socket(&epoll_info);
+    init_epoll(&epoll_info);
+
+    for (;;) {
+        epct = epoll_wait(epoll_info.epfd, epoll_info.events, 1024, -1);
+        printf("%d\n", epct);
     }
-
-    printf("hostname: %s\n", hostname);
-
-    memset(&hints, 0, sizeof(struct addrinfo));
-    // hints.ai_family = AF_UNSPEC;
-    // hints.ai_socktype = SOCK_STREAM;
-    // hints.ai_flags = AI_PASSIVE;
-    hints.ai_flags = AI_CANONNAME;
-    hints.ai_family = AF_INET;
-    if ((err = getaddrinfo(hostname, "8080", &hints, &result)) != 0) {
-        sys_log(FATAL, "getaddrinfo: %s", gai_strerror(err));
-        return -2;
-    }
-
-    struct addrinfo *current;
-    struct sockaddr_in *sin;
-    current = result;
-    while (current && current->ai_canonname) {
-        sin = (struct sockaddr_in*) current->ai_addr;
-        sys_log(INFO, "name:%s, ip: %s",
-                current->ai_canonname,
-                inet_ntop(AF_INET, &sin->sin_addr.s_addr, hostname, sizeof(hostname)));
-        current = current->ai_next;
-    }
-
-    return -1;
+    return;
 }

@@ -5,10 +5,15 @@
 #include <stdio.h>
 #include "bt_epoll.h"
 
+#define PORT "3101"
+
 int main(int argc, char* argv[]) {
-    int a = bt_create_sfd("8081");
-    printf("%d\n", a);
-    for (;;) {
+    char *port = PORT;
+
+    if (argc >= 2) {
+        port = argv[1];
     }
+
+    bt_epoll_start(port);
     return 0;
 }

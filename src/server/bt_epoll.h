@@ -17,7 +17,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include "../util/sys_log.h"
 #include <stdio.h>
+#include <errno.h>
+#include "../util/sys_log.h"
 
-int bt_create_sfd(const char *port);
+void bt_epoll_start(const char *port);
