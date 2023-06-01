@@ -7,6 +7,8 @@
 
 #define PORT "3101"
 
+static void on_recv(void *args);
+
 int main(int argc, char* argv[]) {
     char *port = PORT;
 
@@ -14,6 +16,14 @@ int main(int argc, char* argv[]) {
         port = argv[1];
     }
 
-    bt_epoll_start(port);
+    struct bt_epoll *bt_epoll = bt_epoll_create();
+    bt_epoll->bind(port);
+    bt_epoll->listen(BT_EPOLL_RECV, on_recv);
+    bt_epoll->run();
+
     return 0;
+}
+
+static void on_recv(void *args) {
+    printf("listener被调用");
 }

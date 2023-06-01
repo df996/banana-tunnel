@@ -11,10 +11,83 @@
 
 #include "bt_epoll.h"
 
+struct bt_epoll *instance;
+
+static void init_socket(struct bt_epoll_info *epoll_info);
+static void init_epoll(struct bt_epoll_info *epoll_info);
+static void bt_epoll_bind(const char *port);
+static void bt_epoll_listen(BT_EPOLL_EVENT_TYPE event_type, fn_listen_cb cb);
+static void bt_epoll_run();
+
+/**
+ * 创建bt epoll
+ */
+struct bt_epoll *bt_epoll_create() {
+    if (NULL != instance) {
+        return instance;
+    }
+
+    instance = (struct bt_epoll *)malloc(sizeof(struct bt_epoll));
+    instance->bind = bt_epoll_bind;
+    instance->listen = bt_epoll_listen;
+    instance->run = bt_epoll_run;
+    return instance;
+}
+
+/**
+ * 绑定
+ */
+static void bt_epoll_bind(const char *port) {
+    instance->port = port;
+}
+
+/**
+ * 监听
+ */
+static void bt_epoll_listen(BT_EPOLL_EVENT_TYPE event_type, fn_listen_cb cb) {
+    switch (event_type) {
+        case BT_EPOLL_ACCEPT:
+            sys_log(INFO, "监听accept");
+            break;
+        case BT_EPOLL_RECV:
+            sys_log(INFO, "监听recv");
+            break;
+        case BT_EPOLL_SEND:
+            sys_log(INFO, "监听send");
+            break;
+        default:
+            sys_log(INFO, "未知的监听事件");
+            return;
+    }
+}
+
+/**
+ * 运行
+ */
+static void bt_epoll_run() {
+    if (NULL == instance) {
+        printf("bt_epoll 未创建");
+        exit(0);
+    }
+
+    int epct;
+    struct bt_epoll_info epoll_info;
+
+    epoll_info.port = instance->port;
+    init_socket(&epoll_info);
+    init_epoll(&epoll_info);
+
+    for (;;) {
+        epct = epoll_wait(epoll_info.epfd, epoll_info.events, 1024, -1);
+        printf("%d\n", epct);
+    }
+    return;
+}
+
 /**
  * 初始化socket
  */
-void init_socket(struct bt_epoll_info *epoll_info) {
+static void init_socket(struct bt_epoll_info *epoll_info) {
     struct addrinfo hints;
     struct addrinfo *result;
 
@@ -55,7 +128,7 @@ void init_socket(struct bt_epoll_info *epoll_info) {
 /**
  * 初始化epoll
  */
-void init_epoll(struct bt_epoll_info *epoll_info) {
+static void init_epoll(struct bt_epoll_info *epoll_info) {
     do {
         if ((epoll_info->flags = fcntl(epoll_info->sfd, F_GETFL, 0)) == -1)
             break;
@@ -81,19 +154,4 @@ void init_epoll(struct bt_epoll_info *epoll_info) {
 
     printf("%s", strerror(errno));
     exit(1);
-}
-
-void bt_epoll_start(const char *port) {
-    int epct;
-    struct bt_epoll_info epoll_info;
-
-    epoll_info.port = port;
-    init_socket(&epoll_info);
-    init_epoll(&epoll_info);
-
-    for (;;) {
-        epct = epoll_wait(epoll_info.epfd, epoll_info.events, 1024, -1);
-        printf("%d\n", epct);
-    }
-    return;
 }

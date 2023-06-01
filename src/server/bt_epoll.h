@@ -21,6 +21,25 @@
 #include <errno.h>
 #include "../util/sys_log.h"
 
+typedef enum BT_EPOLL_EVENT_TYPE {
+    BT_EPOLL_ACCEPT,
+    BT_EPOLL_SEND,
+    BT_EPOLL_RECV
+} BT_EPOLL_EVENT_TYPE;
+
+typedef void (*fn_bind)(const char *port);
+typedef void (*fn_listen_cb)(void * args);
+typedef void (*fn_listen)(BT_EPOLL_EVENT_TYPE event_type, fn_listen_cb cb);
+typedef void (*fn_start)();
+
+struct bt_epoll {
+    const char *port;
+
+    fn_bind bind;
+    fn_listen listen;
+    fn_start run;
+};
+
 struct bt_epoll_info {
     int sfd;
     int epfd;
@@ -31,6 +50,6 @@ struct bt_epoll_info {
 };
 
 /**
- * 启动
+ * 创建bt epoll
  */
-void bt_epoll_start(const char *port);
+struct bt_epoll *bt_epoll_create();

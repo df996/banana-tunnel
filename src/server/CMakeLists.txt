@@ -8,8 +8,6 @@ add_executable(
         bt_server.c
         bt_epoll.h
         bt_epoll.c
-        bt_epoll_event.h
-        bt_epoll_event.c
         ../util/sys_log.h
         ../util/sys_log.c
 )
