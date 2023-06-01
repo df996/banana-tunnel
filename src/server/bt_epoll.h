@@ -21,4 +21,16 @@
 #include <errno.h>
 #include "../util/sys_log.h"
 
+struct bt_epoll_info {
+    int sfd;
+    int epfd;
+    int flags;
+    const char *port;
+    struct epoll_event event;
+    struct epoll_event *events;
+};
+
+/**
+ * 启动
+ */
 void bt_epoll_start(const char *port);

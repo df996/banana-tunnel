@@ -11,15 +11,9 @@
 
 #include "bt_epoll.h"
 
-struct bt_epoll_info {
-    int sfd;
-    int epfd;
-    int flags;
-    const char *port;
-    struct epoll_event event;
-    struct epoll_event *events;
-};
-
+/**
+ * 初始化socket
+ */
 void init_socket(struct bt_epoll_info *epoll_info) {
     struct addrinfo hints;
     struct addrinfo *result;
@@ -58,6 +52,9 @@ void init_socket(struct bt_epoll_info *epoll_info) {
     exit(1);
 }
 
+/**
+ * 初始化epoll
+ */
 void init_epoll(struct bt_epoll_info *epoll_info) {
     do {
         if ((epoll_info->flags = fcntl(epoll_info->sfd, F_GETFL, 0)) == -1)
