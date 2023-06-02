@@ -1,55 +1,61 @@
-/*------------------------------------------------------
-¦ 文件名
-¦ 文件描述
-¦ 
-¦ Author: 大风
-¦ Email: 1236192@qq.com
-¦ Date: 2023-05-30 16:55:24
-¦ Version: 1.0
-¦ FilePath: src/server/socket/bt_epoll.h
-¦------------------------------------------------------*/
-
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <netdb.h>
-#include <string.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <stdio.h>
 #include <errno.h>
+#include <arpa/inet.h>
 #include "../util/sys_log.h"
 
-typedef enum BT_EPOLL_EVENT_TYPE {
-    BT_EPOLL_ACCEPT,
-    BT_EPOLL_SEND,
-    BT_EPOLL_RECV
-} BT_EPOLL_EVENT_TYPE;
+// 读写缓冲区长度
+#define BT_EPOLL_BUFFER_LENGTH 4096
+// epoll 最大事件数
+#define BT_EPOLL_MAX_EVENTS 1024
 
-typedef void (*fn_bind)(const char *port);
-typedef void (*fn_listen_cb)(void * args);
-typedef void (*fn_listen)(BT_EPOLL_EVENT_TYPE event_type, fn_listen_cb cb);
-typedef void (*fn_start)();
+typedef void (*fn_appect_cb)(void *args);
+typedef void (*fn_send_cb)(void *args);
+typedef void (*fn_recv_cb)(void *args);
+struct bt_epoll_event {
+    int sfd;
+    int events;
+    void *args;
+    int send_len;
+    unsigned char *send_buf[BT_EPOLL_BUFFER_LENGTH];
+    int recv_len;
+    unsigned char *recv_buf[BT_EPOLL_BUFFER_LENGTH];
 
-struct bt_epoll {
-    const char *port;
-
-    fn_bind bind;
-    fn_listen listen;
-    fn_start run;
+    fn_appect_cb appect_cb;
+    fn_recv_cb recv_cb;
+    fn_send_cb send_cb;
 };
 
-struct bt_epoll_info {
-    int sfd;
+struct bt_epoll_event_block {
+    struct bt_epoll_event_block *next;
+    struct bt_epoll_event *events;
+};
+
+struct bt_epoll {
+    /**
+     * epoll fd
+     */
     int epfd;
-    int flags;
-    const char *port;
-    struct epoll_event event;
-    struct epoll_event *events;
+    /**
+     * block count
+     */
+    int blkcnt;
+
+    struct bt_epoll_event_block *block;
 };
 
 /**
- * 创建bt epoll
+ * 初始化socket
+ * @param port 监听端口
+ * @returns 执行成功返回socketfd，失败返回-1
  */
-struct bt_epoll *bt_epoll_create();
+int init_socket(const char *port);
+
+/**
+ * 初始化bt epoll
+ * @param bt_epoll结构指针
+ * @return 执行成功返回0, 失败返回-1
+ */
+int init_epoll(struct bt_epoll *epoll);

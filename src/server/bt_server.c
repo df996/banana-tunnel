@@ -1,7 +1,3 @@
-//
-// Created by cheng on 2023/5/30.
-//
-
 #include <stdio.h>
 #include "bt_epoll.h"
 
@@ -15,15 +11,17 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) {
         port = argv[1];
     }
+    
+    // init_socket(port);
 
-    struct bt_epoll *bt_epoll = bt_epoll_create();
-    bt_epoll->bind(port);
-    bt_epoll->listen(BT_EPOLL_RECV, on_recv);
-    bt_epoll->run();
+    struct bt_epoll *epoll = (struct bt_epoll *)
+        malloc(sizeof(struct bt_epoll));
+
+    init_epoll(epoll);
+
+    // for(;;) {}
+
+    // init_epoll();
 
     return 0;
-}
-
-static void on_recv(void *args) {
-    printf("listener被调用");
 }
