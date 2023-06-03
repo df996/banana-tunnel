@@ -73,15 +73,19 @@ struct bt_epoll {
 };
 
 /**
- * 初始化socket
+ * 创建socket
  * @param port 监听端口
  * @returns 执行成功返回socketfd，失败返回-1
  */
-int init_socket(const char *port);
+int create_socket(const char *port);
 
 /**
- * 初始化bt epoll
+ * 初始化bt_epoll
  * @param bt_epoll结构指针
  * @return 执行成功返回0, 失败返回-1
  */
 int init_epoll(struct bt_epoll *epoll);
+
+int epoll_add_listener(struct bt_epoll *epoll, int sfd);
+
+int epoll_run(struct bt_epoll *epoll);

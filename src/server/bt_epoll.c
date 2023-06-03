@@ -4,11 +4,11 @@ static int epoll_alloc(struct bt_epoll *epoll);
 static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd);
 
 /**
- * 初始化socket
+ * 创建socket
  * @param port 监听端口
  * @returns 执行成功返回socketfd，失败返回-1
  */
-int init_socket(const char *port) {
+int create_socket(const char *port) {
     int sfd, flags;
 
     // 创建socket
@@ -164,7 +164,7 @@ static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd) {
     // 获取当前socket fd获取对应events所在的block
     int blk_idx = sfd / BT_EPOLL_MAX_EVENTS;
 
-    // 如果block数量小余等于索引，则暴力分配
+    // 如果block数量小余等于索引，则分配
     while (blk_idx >= epoll->blkcnt) {
         epoll_alloc(epoll);
     }
@@ -176,4 +176,30 @@ static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd) {
     }
 
     return &blk->events[sfd % BT_EPOLL_MAX_EVENTS];
+}
+
+int epoll_add_listener(struct bt_epoll *epoll, int sfd) {
+    if (epoll == NULL || epoll->evblk == NULL) {
+        return -1;
+    }
+
+    struct bt_epoll_event *event = epoll_index(epoll, sfd);
+    return 0;
+}
+
+int epoll_run(struct bt_epoll *epoll) {
+    if (epoll == NULL || epoll->epfd < 0 || epoll->evblk == NULL) {
+        return -1;
+    }
+
+    struct epoll_event events[BT_EPOLL_MAX_EVENTS + 1];
+    for (;;) {
+        int nready = epoll_wait(epoll->epfd, events, BT_EPOLL_MAX_EVENTS, 1000);
+        if (nready < 0) {
+            sys_log(LOG_FATAL, "error: epoll_wait error");
+            continue;
+        }
+    }
+
+    return 0;
 }
