@@ -1,6 +1,13 @@
 #include "bt_epoll.h"
 
 /**
+ * 分配资源
+ * @param epoll bt_epoll结构体指针
+ * @return 执行成功返回0, 失败返回-1
+ */
+static int epoll_alloc(struct bt_epoll *epoll);
+
+/**
  * 初始化socket
  * @param port 监听端口
  * @returns 执行成功返回socketfd，失败返回-1
@@ -25,7 +32,8 @@ int init_socket(const char *port) {
 
     // 设置标志位到sfd的文件状态
     if (fcntl(sfd, F_SETFL, flags) == -1) {
-        sys_log(LOG_FATAL, "errno: %s, fcntl() F_SETFL failed, flags: %d", strerror(errno), flags);
+        sys_log(LOG_FATAL, "errno: %s, fcntl() F_SETFL failed, flags: %d", 
+            strerror(errno), flags);
         return -1;
     }
 
@@ -88,33 +96,70 @@ int init_epoll(struct bt_epoll *epoll) {
     memset(evs, 0, (BT_EPOLL_MAX_EVENTS) * sizeof(struct bt_epoll_event));
     
     // 申请block空间
-    struct bt_epoll_event_block *block = (struct bt_epoll_event_block *)
+    struct bt_epoll_event_block *evblk = (struct bt_epoll_event_block *)
         malloc(sizeof(struct bt_epoll_event_block));
-    if (block == NULL) {
-        sys_log(LOG_FATAL, "error: malloc(), alloc bt_epoll block failed");
+    if (evblk == NULL) {
+        sys_log(LOG_FATAL, "error: malloc(), alloc bt_epoll event block failed");
         return -1;
     }
-    memset(block, 0, sizeof(struct bt_epoll_event_block));
+    memset(evblk, 0, sizeof(struct bt_epoll_event_block));
     
     // 初始化块状链表
-    block->next = NULL;
-    block->events = evs;
+    evblk->next = NULL;
+    evblk->events = evs;
 
     // 设置bt_epoll
     epoll->blkcnt = 1;
-    epoll->block = block;
+    epoll->evblk = evblk;
     
     return 0;
 }
 
-int epoll_alloc(struct bt_epoll *epoll) {
+/**
+ * 分配资源
+ * @param epoll bt_epoll结构体指针
+ * @return 执行成功返回0, 失败返回-1
+ */
+static int epoll_alloc(struct bt_epoll *epoll) {
     if (epoll == NULL) {
         return -1;
     }
 
-    if (epoll->block == NULL) {
+    if (epoll->evblk == NULL) {
         return -1;
     }
 
-    struct bt_epoll_event_block *block = epoll->block;
+    // 获取块状链表中最后一个节点
+    struct bt_epoll_event_block *last_evblk = epoll->evblk;
+    while (last_evblk != NULL) {
+        last_evblk = last_evblk->next;
+    }
+
+    // 申请events内存空间
+    struct bt_epoll_event *evs = (struct bt_epoll_event *)
+        malloc(BT_EPOLL_MAX_EVENTS * sizeof(struct bt_epoll_event));
+    if (evs == NULL) {
+        sys_log(LOG_FATAL, "error: malloc(), alloc bt_epoll events failed");
+        return -1;
+    }
+    memset(evs, 0, BT_EPOLL_MAX_EVENTS * sizeof(struct bt_epoll_event));
+
+    // 申请block空间
+    struct bt_epoll_event_block *evblk = (struct bt_epoll_event_block *)
+        malloc(sizeof(struct bt_epoll_event_block));
+    if (evblk == NULL) {
+        sys_log(LOG_FATAL, "error: malloc(), alloc bt_epoll event block failed");
+        return -1;
+    }
+    memset(evblk, 0, sizeof(struct bt_epoll_event_block));
+
+    // 初始化块状链表
+    evblk->next = NULL;
+    evblk->events = evs;
+
+    // 重置指向
+    last_evblk->next = evblk;
+    epoll->blkcnt++;
+
+    return 0;
 }

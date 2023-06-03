@@ -6,14 +6,34 @@
 #include <arpa/inet.h>
 #include "../util/sys_log.h"
 
-// 读写缓冲区长度
+/**
+ * 读写缓冲区长度
+ */
 #define BT_EPOLL_BUFFER_LENGTH 4096
-// epoll 最大事件数
+
+/**
+ * epoll 最大事件数
+ */
 #define BT_EPOLL_MAX_EVENTS 1024
 
+/**
+ * accept 回调
+ */
 typedef void (*fn_appect_cb)(void *args);
+
+/**
+ * send 回调
+ */
 typedef void (*fn_send_cb)(void *args);
+
+/**
+ * recv 回调
+ */
 typedef void (*fn_recv_cb)(void *args);
+
+/**
+ * bt_epoll 事件结构
+ */
 struct bt_epoll_event {
     int sfd;
     int events;
@@ -28,11 +48,17 @@ struct bt_epoll_event {
     fn_send_cb send_cb;
 };
 
+/**
+ * bt_epoll 事件块状空间结构
+ */
 struct bt_epoll_event_block {
     struct bt_epoll_event_block *next;
     struct bt_epoll_event *events;
 };
 
+/**
+ * bt_epoll 主结构
+ */
 struct bt_epoll {
     /**
      * epoll fd
@@ -43,7 +69,7 @@ struct bt_epoll {
      */
     int blkcnt;
 
-    struct bt_epoll_event_block *block;
+    struct bt_epoll_event_block *evblk;
 };
 
 /**
