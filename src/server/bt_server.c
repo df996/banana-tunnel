@@ -12,12 +12,13 @@ int main(int argc, char* argv[]) {
         port = argv[1];
     }
     
-    // init_socket(port);
-
     struct bt_epoll *epoll = (struct bt_epoll *)
         malloc(sizeof(struct bt_epoll));
 
+    int sfd = init_socket(port);
     init_epoll(epoll);
+
+    printf("sfd: %d, epfd: %d\n", sfd, epoll->epfd);
 
     // for(;;) {}
 

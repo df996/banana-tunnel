@@ -1,11 +1,7 @@
 #include "bt_epoll.h"
 
-/**
- * 分配资源
- * @param epoll bt_epoll结构体指针
- * @return 执行成功返回0, 失败返回-1
- */
 static int epoll_alloc(struct bt_epoll *epoll);
+static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd);
 
 /**
  * 初始化socket
@@ -162,4 +158,22 @@ static int epoll_alloc(struct bt_epoll *epoll) {
     epoll->blkcnt++;
 
     return 0;
+}
+
+static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd) {
+    // 获取当前socket fd获取对应events所在的block
+    int blk_idx = sfd / BT_EPOLL_MAX_EVENTS;
+
+    // 如果block数量小余等于索引，则暴力分配
+    while (blk_idx >= epoll->blkcnt) {
+        epoll_alloc(epoll);
+    }
+
+    int i = 0;
+    struct bt_epoll_event_block *blk = epoll->evblk;
+    while (i++ < blk_idx && blk != NULL) {
+        blk = blk->next;
+    }
+
+    return &blk->events[sfd % BT_EPOLL_MAX_EVENTS];
 }
