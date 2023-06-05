@@ -2,6 +2,12 @@
 
 static int epoll_alloc(struct bt_epoll *epoll);
 static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd);
+static int bt_send(int sfd, int events, void *arg);
+static int bt_recv(int sfd, int events, void *arg);
+static int bt_accept(int sfd, int events, void *arg);
+static int add_event(int epfd, int events, struct bt_epoll_event *ev);
+static int remove_event(int epfd, struct bt_epoll_event *ev);
+static void set_event(struct bt_epoll_event *ev, int sfd, callback cb, void *arg);
 
 /**
  * 创建socket
@@ -178,12 +184,130 @@ static struct bt_epoll_event *epoll_index(struct bt_epoll *epoll, int sfd) {
     return &blk->events[sfd % BT_EPOLL_MAX_EVENTS];
 }
 
+static void set_event(struct bt_epoll_event *ev, int sfd, callback cb, void *arg) {
+    ev->sfd = sfd;
+    ev->callback = cb;
+    ev->events = 0;
+    ev->arg = arg;
+    ev->last_active = time(NULL);
+}
+
+static int add_event(int epfd, int events, struct bt_epoll_event *ev) {
+    // 内核event
+    struct epoll_event ep_ev = {0, {0}};
+
+    ep_ev.data.ptr = ev;
+    ep_ev.events = ev->events = events;
+
+    int op;
+    if (ev->status == 1) {
+        op = EPOLL_CTL_MOD;
+    } else {
+        op = EPOLL_CTL_ADD;
+        ev->status = 1;
+    }
+
+    if (epoll_ctl(epfd, op, ev->sfd, &ep_ev) < 0) {
+        sys_log(LOG_FATAL, "event add failed [sfd=%d], events[%d]", ev->sfd, events);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int remove_event(int epfd, struct bt_epoll_event *ev) {
+    struct epoll_event event = {0, {0}};
+    if (ev->status != 1) {
+        return -1;
+    }
+
+    event.data.ptr = ev;
+    ev->status = 0;
+    epoll_ctl(epfd, EPOLL_CTL_DEL, ev->sfd, &event);
+    return 0;
+}
+
+static int bt_send(int sfd, int events, void *arg) {
+    struct bt_epoll *epoll = (struct bt_epoll *)arg;
+    struct bt_epoll_event *ev = epoll_index(epoll, sfd);
+    char *buf = (char *)malloc(BT_EPOLL_BUFFER_LENGTH);
+    memset(buf, 0, BT_EPOLL_BUFFER_LENGTH);
+    strcpy(buf, "hello client !");
+    int len = send(sfd, (void *)buf, BT_EPOLL_BUFFER_LENGTH, 0);
+    if (len > 0) {
+        sys_log(LOG_INFO, "send[fd=%d], [%d]%s", sfd, len, ev->buf);
+        remove_event(epoll->epfd, ev);
+        set_event(ev, sfd, bt_recv, epoll);
+        add_event(epoll->epfd, EPOLLIN, ev);
+    } else {
+        close(ev->sfd);
+        remove_event(epoll->epfd, ev);
+        sys_log(LOG_ERROR, "send[fd=%d] error %s", sfd, strerror(errno));
+    }
+    free(buf);
+    return len;
+}
+
+static int bt_recv(int sfd, int events, void *arg) {
+    struct bt_epoll *epoll = (struct bt_epoll *)arg;
+    struct bt_epoll_event *ev = epoll_index(epoll, sfd);
+    int len = recv(sfd, ev->buf, BT_EPOLL_BUFFER_LENGTH, 0);
+    remove_event(epoll->epfd, &epoll->evblk->events[sfd]);
+    if (len > 0) {
+        ev->len = len;
+        ev->buf[len] = '\0';
+        sys_log(LOG_INFO, "recv[fd=%d], [%d]%s", sfd, len, ev->buf);
+        set_event(ev, sfd, bt_send, epoll);
+        add_event(epoll->epfd, EPOLLOUT, ev);
+    } else if (len == 0) {
+        close(ev->sfd);
+        sys_log(LOG_INFO, "[fd=%d] closed", sfd);
+    } else {
+        close(ev->sfd);
+        sys_log(LOG_ERROR, "recv[fd=%d] error[%d]:%s", sfd, errno, strerror(errno));
+    }
+    return len;
+}
+
+static int bt_accept(int sfd, int events, void *arg) {
+    struct bt_epoll *epoll = (struct bt_epoll *)arg;
+    if (epoll == NULL) {
+        return -1;
+    }
+
+    struct sockaddr_in client_addr;
+    socklen_t len = sizeof(client_addr);
+
+    int client_fd;
+    if ((client_fd = accept(sfd, (struct sockaddr *) &client_addr, &len)) == -1) {
+        if (errno != EAGAIN && errno != EINTR) {
+            sys_log(LOG_ERROR, "error accept: %s", strerror(errno));
+            return -1;
+        }
+    }
+
+    int flag = 0;
+    if ((flag = fcntl(client_fd, F_SETFL, O_NONBLOCK)) < 0) {
+        sys_log(LOG_ERROR, "fcntl nonblocking failed");
+        return -1;
+    }
+    
+    struct bt_epoll_event *ev = epoll_index(epoll, client_fd);
+    set_event(ev, client_fd, bt_recv, epoll);
+    add_event(epoll->epfd, EPOLLIN, ev);
+    sys_log(LOG_INFO, "new connect [%s:%d], pos[%d]",
+        inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
+    return 0;
+}
+
 int epoll_add_listener(struct bt_epoll *epoll, int sfd) {
     if (epoll == NULL || epoll->evblk == NULL) {
         return -1;
     }
 
-    struct bt_epoll_event *event = epoll_index(epoll, sfd);
+    struct bt_epoll_event *ev = epoll_index(epoll, sfd);
+    set_event(ev, sfd, bt_accept, epoll);
+    add_event(epoll->epfd, EPOLLIN, ev);
     return 0;
 }
 
@@ -192,12 +316,23 @@ int epoll_run(struct bt_epoll *epoll) {
         return -1;
     }
 
+    int i;
     struct epoll_event events[BT_EPOLL_MAX_EVENTS + 1];
     for (;;) {
         int nready = epoll_wait(epoll->epfd, events, BT_EPOLL_MAX_EVENTS, 1000);
         if (nready < 0) {
             sys_log(LOG_FATAL, "error: epoll_wait error");
             continue;
+        }
+
+        for (i = 0; i < nready; i++) {
+            struct bt_epoll_event *ev = (struct bt_epoll_event *)events[i].data.ptr;
+            if ((events[i].events & EPOLLIN) && (ev->events & EPOLLIN)) {
+                ev->callback(ev->sfd, events[i].events, ev->arg);
+            }
+            if ((events[i].events & EPOLLOUT) && (ev->events & EPOLLOUT)) {
+                ev->callback(ev->sfd, events[i].events, ev->arg);
+            }
         }
     }
 

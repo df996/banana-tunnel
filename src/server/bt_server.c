@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     init_epoll(epoll);
 
     int i;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < 1; i++) {
         char sp[2] = { 0 };
         sprintf(sp, "%d", p + i);
         int sfd = create_socket(sp);
@@ -26,8 +26,6 @@ int main(int argc, char* argv[]) {
         printf("sfd: %d, epfd: %d, port: %s\n", sfd, epoll->epfd, sp);
     }
     epoll_run(epoll);
-
-    // init_epoll();
 
     return 0;
 }

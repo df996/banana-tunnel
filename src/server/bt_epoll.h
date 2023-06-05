@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include "../util/sys_log.h"
 
 /**
@@ -15,6 +16,8 @@
  * epoll 最大事件数
  */
 #define BT_EPOLL_MAX_EVENTS 1024
+
+typedef int callback(int sfd, int events, void *arg);
 
 /**
  * accept 回调
@@ -37,7 +40,14 @@ typedef void (*fn_recv_cb)(void *args);
 struct bt_epoll_event {
     int sfd;
     int events;
-    void *args;
+    void *arg;
+    int (*callback)(int fd, int events, void *arg);
+    int status;
+    char buf[BT_EPOLL_BUFFER_LENGTH];
+    int len;
+    long last_active;
+
+
     int send_len;
     unsigned char *send_buf[BT_EPOLL_BUFFER_LENGTH];
     int recv_len;
