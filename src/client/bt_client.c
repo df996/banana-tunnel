@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include "../util/str_help.h"
+#include "bt_conn.h"
 
 int main(int argc, char* argv[]) {
     if (argc <= 2) {
@@ -17,8 +18,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    printf("ip: %s, port: %s\n", srv_ip_port->ip, srv_ip_port->port);
-    printf("%s", argv[2]);
+    bt_connet(srv_ip_port->ip, srv_ip_port->port);
     free_ip_port(srv_ip_port);
     return 0;
 
