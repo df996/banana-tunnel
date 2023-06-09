@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
     }
 
     printf("ip: %s, port: %s\n", srv_ip_port->ip, srv_ip_port->port);
+    printf("%s", argv[2]);
     free_ip_port(srv_ip_port);
     return 0;
 
