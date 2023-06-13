@@ -44,7 +44,7 @@ int create_socket(const char *port) {
     memset(&srv_addr, 0, sizeof(srv_addr));
     srv_addr.sin_port = htons(atoi(port));
     srv_addr.sin_family = AF_INET;
-    srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    srv_addr.sin_addr.s_addr = INADDR_ANY;
 
     // 设置socket，允许地址被复用
     // 许服务器bind一个地址，即使这个地址当前已经存在已建立的连接，比如：
