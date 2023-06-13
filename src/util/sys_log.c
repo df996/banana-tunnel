@@ -54,10 +54,9 @@ void sys_log(SYS_LOG_LEVEL level, const char *format, ...) {
     
     // 追加换行符
     const char *lf = "\n";
-    int len = 1024 * sizeof(char);
-    char *new_format = (char *) malloc(len);
-    strcpy_s(new_format, len, format);
-    strcat_s(new_format, len, lf);
+    char *new_format = (char *) malloc(strlen(format) + strlen(lf) + 1);
+    strcpy(new_format, format);
+    strcat(new_format, lf);
 
     va_list args;
     va_start(args, format);
