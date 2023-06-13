@@ -7,7 +7,7 @@ cd cmake-build-debug
 cmake ..
 make
 
-cp src/client/bt-client .
+#cp src/client/bt-client .
 cp src/server/bt-server .
 
 
